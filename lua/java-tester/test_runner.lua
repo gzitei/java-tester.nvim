@@ -19,6 +19,77 @@ local hl_by_status = {
     skipped = 'TestSkipped',
 }
 
+---@param text string|string[]
+local function show_long_text_in_floating_window(text)
+    local current_win = vim.api.nvim_get_current_win()
+    local lines
+    if type(text) == 'string' then
+        lines = vim.split(text, '\n')
+    else
+        lines = text
+    end
+
+    local width = math.floor(vim.o.columns * 0.8)
+    local height = math.floor(vim.o.lines * 0.8)
+
+    local row = math.floor((vim.o.lines - height) / 2)
+    local col = math.floor((vim.o.columns - width) / 2)
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
+    vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = buf })
+
+    local win = vim.api.nvim_open_win(buf, true, {
+        relative = 'editor',
+        width = width,
+        height = height,
+        row = row,
+        col = col,
+        style = 'minimal',
+        border = 'rounded',
+    })
+
+    vim.api.nvim_win_call(win, function()
+        vim.cmd('normal! G')
+    end)
+    vim.api.nvim_set_current_win(current_win)
+
+    vim.keymap.set('n', 'q', function()
+        vim.api.nvim_win_close(win, true)
+    end, { buffer = buf, nowait = true })
+    vim.keymap.set('n', '<Esc>', function()
+        vim.api.nvim_win_close(win, true)
+    end, { buffer = buf, nowait = true })
+    local timer = vim.loop.new_timer()
+
+    timer:start(5000, 0, function()
+        vim.schedule(function()
+            if vim.api.nvim_win_is_valid(win) then
+                if vim.api.nvim_get_current_win() ~= win then
+                    vim.api.nvim_win_close(win, true)
+                end
+            end
+
+            if not timer:is_closing() then
+                timer:stop()
+                timer:close()
+            end
+        end)
+    end)
+
+    vim.api.nvim_create_autocmd({ 'WinEnter', 'BufEnter' }, {
+        buffer = buf,
+        once = true,
+        callback = function()
+            if timer and not timer:is_closing() then
+                timer:stop()
+                timer:close()
+            end
+        end,
+    })
+end
+
 ---@class testcase
 ---@field skipped? boolean
 ---@field classname string
@@ -56,7 +127,9 @@ local hl_by_status = {
 
 local function get_file_content(file_path)
     local file = io.open(file_path, 'r')
-    if not file then return '' end
+    if not file then
+        return ''
+    end
     local content = file:read('*all')
     file:close()
     return content
@@ -75,7 +148,9 @@ local function get_tag_attributes(node, content)
     local attrs = {}
     while true do
         node = node:next_named_sibling()
-        if not node then break end
+        if not node then
+            break
+        end
         local text = vim.treesitter.get_node_text(node, content)
         local attribute_text = vim.split(text, '=')
         local key, value = attribute_text[1], attribute_text[2]
@@ -279,7 +354,9 @@ end
 ---@param end_state? boolean
 ---@return notify.Record
 local function notification(msg, id, end_state)
-    if end_state == nil then end_state = false end
+    if end_state == nil then
+        end_state = false
+    end
     local opts = {
         render = 'compact',
         icon = ' 󰙨',
@@ -289,8 +366,12 @@ local function notification(msg, id, end_state)
         title = 'Java Test',
         animate = false,
     }
-    if end_state then opts.timeout = 2000 end
-    if id ~= nil then opts.replace = id end
+    if end_state then
+        opts.timeout = 2000
+    end
+    if id ~= nil then
+        opts.replace = id
+    end
     return require('notify').notify(msg .. ' ', 'info', opts)
 end
 
@@ -411,15 +492,21 @@ end
 ---@param ns integer
 local function process_report_json(data, nodes, bufnr, ns)
     vim.schedule(function()
-        if not nodes.class_declaration then return end
-        if not nodes.method_declaration then return end
+        if not nodes.class_declaration then
+            return
+        end
+        if not nodes.method_declaration then
+            return
+        end
         local class_node = nodes.class_declaration.node
         pcall(add_class_mark, data, class_node, bufnr, ns)
         local done = {}
         for _, method in pairs(nodes.method_declaration) do
             local method_name = method.text
             if done[method_name] == nil then
-                if not data.testcases then return end
+                if not data.testcases then
+                    return
+                end
                 local case = find_matching_testcase(data.testcases, method_name)
                 if case ~= nil then
                     pcall(add_method_mark, case, method.node, bufnr, ns)
@@ -436,7 +523,9 @@ end
 ---@param ns integer
 local function parse_report_xml(file, nodes, bufnr, ns)
     local ok, data = pcall(parse_xml_to_json, file)
-    if not ok then return end
+    if not ok then
+        return
+    end
     pcall(process_report_json, data, nodes, bufnr, ns)
 end
 
@@ -468,9 +557,13 @@ end
 M.list_java_tests = function()
     local nodes = parse_document()
     local class_declaration = nodes.class_declaration
-    if class_declaration == nil then return end
+    if class_declaration == nil then
+        return
+    end
     local class_declaration_node = class_declaration.node
-    if class_declaration_node == nil then return end
+    if class_declaration_node == nil then
+        return
+    end
     local bufnr = vim.api.nvim_get_current_buf()
     local buf_name = vim.api.nvim_buf_get_name(bufnr)
     local fname = vim.fn.fnamemodify(vim.fs.basename(buf_name), ':t:r')
@@ -552,8 +645,10 @@ local function build_test_command(
 
         table.insert(cmd, 'clean')
         table.insert(cmd, string.format(':%s:test', project_name))
-        if debug then table.insert(cmd, '--debug-jvm') end
-        table.insert(cmd, '--info')
+        if debug then
+            table.insert(cmd, '--debug-jvm')
+        end
+        table.insert(cmd, '--continue')
         table.insert(cmd, '--tests')
         table.insert(cmd, '--rerun-tasks')
         table.insert(cmd, test_filter)
@@ -565,7 +660,9 @@ local function build_test_command(
 
         table.insert(cmd, '-am')
         table.insert(cmd, 'test')
-        if debug then table.insert(cmd, '-Dmaven.surefire.debug') end
+        if debug then
+            table.insert(cmd, '-Dmaven.surefire.debug')
+        end
         table.insert(cmd, string.format('-Dtest=%s', test_filter))
     end
 
@@ -660,7 +757,7 @@ local function handle_test_completion(
         vim.schedule(function()
             vim.notify(
                 'Could not find test report at: '
-                .. (test_xml or 'unknown path'),
+                    .. (test_xml or 'unknown path'),
                 vim.log.levels.WARN
             )
         end)
@@ -674,7 +771,9 @@ M.run_test = function(opts)
     local method_name = opts.method_name
 
     local nodes = parse_document()
-    if #nodes.method_declaration == 0 then return end
+    if #nodes.method_declaration == 0 then
+        return
+    end
 
     local wrapper = get_wrapper(bufnr)
     local project_dir = get_build(bufnr)
@@ -706,7 +805,7 @@ M.run_test = function(opts)
         cwd = vim.uv.cwd(),
         stderr_buffered = true,
         on_stderr = function(_, stderr_data)
-            vim.notify(table.concat(stderr_data, '\n'))
+            vim.notify(stderr_data)
         end,
         on_stdout = function(_, msg)
             state.output_buffer = state.output_buffer
@@ -738,6 +837,7 @@ M.run_test = function(opts)
             end
         end,
         on_exit = function()
+            show_long_text_in_floating_window(state.output_buffer)
             state.waiting_nf =
                 notification('Tests finished!', state.waiting_nf, true)
             handle_test_completion(
