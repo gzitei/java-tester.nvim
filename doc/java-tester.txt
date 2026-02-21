@@ -1,0 +1,83 @@
+*java-tester.txt*   Run Java tests with DAP and Gradle/Maven seamlessly.
+
+==============================================================================
+1. Introduction                                      |java-tester-introduction|
+2. Commands                                          |java-tester-commands|
+3. Configuration                                     |java-tester-configuration|
+4. API                                               |java-tester-api|
+
+==============================================================================
+1. Introduction                                      *java-tester-introduction*
+
+`java-tester.nvim` is a Neovim plugin that gives you easy tools for finding,
+picking, and running Java tests. It uses Neovim's Tree-sitter to parse out
+methods and class metadata and extracts test reports from test XMLs (Gradle or
+Maven) to provide line diagnostics and virtual text in your editor.
+
+Requirements:
+- nvim-dap
+- nvim-treesitter (with `java` and `xml` parsers)
+
+==============================================================================
+2. Commands                                              *java-tester-commands*
+
+When `create_commands` is true, the following commands are available on `.java` files.
+
+:JavaFindTest
+    Lists all tests referencing the current Java class.
+
+:JavaRunTest
+    Runs the current Java test class. Prompts for 'Run' or 'Debug'.
+
+:JavaPickTest
+    Picks a specific `@Test` method from the current file and runs it.
+
+==============================================================================
+3. Configuration                                    *java-tester-configuration*
+
+To configure `java-tester.nvim`, use the `setup` function.
+
+Example configuration with defaults: >
+    require("java-tester").setup({
+        enable_autocmds = true,
+        prompt_on_save = true,
+        create_commands = true,
+    })
+<
+Options:
+    *enable_autocmds* (boolean)
+        Enables BufWritePost autocmds to handle tests upon save.
+        (default: true)
+
+    *prompt_on_save* (boolean)
+        If true, standard prompt dialog will show asking to run/debug Java test
+        when a file named `*Test.java` or `*IT.java` is saved.
+        (default: true)
+
+    *create_commands* (boolean)
+        If true, creates the commands: `JavaFindTest`, `JavaRunTest`, and `JavaPickTest`
+        auto-magically whenever a python file is loaded.
+        (default: true)
+
+==============================================================================
+4. API                                                        *java-tester-api*
+
+setup({opts})                                             *java-tester.setup()*
+    Initialize plugin configuration.
+
+test_runner                                         *java-tester.test_runner*
+    Returns the module allowing one to trigger test logic dynamically without
+    user commands.
+    
+    Functions available:
+    * `test_runner.run_test(opts)`
+      opts parameters:
+      - `bufnr`: the associated integer buffer id.
+      - `debug`: (boolean) start test with debugger flag.
+      - `method_name`: (string) the name of the method to specifically run.
+
+    * `test_runner.get_test_methods()`
+    * `test_runner.list_java_tests()`
+
+
+vim:tw=78:ts=8:ft=help:norl:
